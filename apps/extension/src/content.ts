@@ -980,13 +980,40 @@ const closeButton =
     "mini-apty-close"
   );
 
-closeButton?.addEventListener(
-  "click",
-  () => {
-    recorderPanel?.remove();
-    recorderPanel = null;
+closeButton?.addEventListener("click", () => {
+  // stop recording
+  isRecording = false;
+
+  // remove active highlight
+  if (currentHighlighted) {
+    currentHighlighted.style.outline = "";
+    currentHighlighted.style.boxShadow = "";
+    currentHighlighted = null;
   }
-);
+
+  // update button text
+  const recordButton = document.getElementById(
+    "mini-apty-record"
+  ) as HTMLButtonElement | null;
+
+  if (recordButton) {
+    recordButton.textContent = "Start Recording";
+    recordButton.style.background = "#22c55e";
+  }
+
+  // update status text
+  const status = document.getElementById(
+    "mini-apty-status"
+  );
+
+  if (status) {
+    status.textContent = "Recording is stopped.";
+  }
+
+  // hide panel
+  recorderPanel?.remove();
+  recorderPanel = null;
+});
 
 if (autoCheckbox) {
   autoCheckbox.addEventListener("change", () => {
