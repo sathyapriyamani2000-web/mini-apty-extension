@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  walkthroughs Walkthrough[]
+}
+
+model Walkthrough {
+  id          String   @id @default(cuid())
+  title       String
+  origin      String
+  pathPattern String
+  steps       Json
+
+  userId String
+  user   User @relation(fields: [userId], references: [id])
+}
