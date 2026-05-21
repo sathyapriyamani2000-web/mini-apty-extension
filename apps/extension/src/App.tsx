@@ -86,15 +86,22 @@ function App() {
   const isPasswordValid = form.password.length >= 8;
   const isFormValid = isEmailValid && isPasswordValid;
 
+  type StoredAuth = {
+    miniAptyToken?: string;
+    miniAptyEmail?: string;
+  };
+
   useEffect(() => {
     chrome.storage.local.get(["miniAptyToken", "miniAptyEmail"], (result) => {
-      const storedToken = (result as { miniAptyToken?: string }).miniAptyToken;
-      if (storedToken) {
-        setToken(storedToken);
-        setMessage("Authenticated token loaded.");
+      const { miniAptyToken, miniAptyEmail } = result as StoredAuth;
+
+      if (typeof miniAptyToken === "string" && miniAptyToken.length > 0) {
+        setToken(miniAptyToken);
+        setEmail(typeof miniAptyEmail === "string" ? miniAptyEmail : null);
+        setMessage("Authenticated successfully.", "success");
       }
     });
-  }, [setToken, setMessage]);
+  }, [setToken, setEmail, setMessage]);
 
   async function authenticate(type: "login" | "signup") {
     const validation = authSchema.safeParse(form);
@@ -150,7 +157,7 @@ function App() {
           window.close();
         }
       );
-      showMessage(`${type === "login" ? "Login" : "Signup"} successful.`, "success");
+
     } catch (error) {
       showMessage(error instanceof Error ? error.message : String(error), "error");
     } finally {
@@ -161,7 +168,10 @@ function App() {
   function logout() {
     setToken(null);
     setEmail(null);
-    chrome.storage.local.remove(["miniAptyToken"]);
+    chrome.storage.local.remove([
+      "miniAptyToken",
+      "miniAptyEmail"
+    ]);
     showMessage("Logged out.", "info");
   }
 
@@ -203,46 +213,92 @@ function App() {
           <strong>{token ? email ?? "Yes" : "No"}</strong>
         </div>
 
-        <div className="form-row">
-          <label>
-            Email
-            <input
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-              type="email"
-              placeholder="you@example.com"
-            />
-          </label>
-          <label>
-            Password
-            <input
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              type="password"
-              placeholder="Minimum 8 characters"
-            />
-          </label>
-        </div>
+        {!token ? (
+          <>
+            <div className="form-row">
+              <label>
+                Email
+                <input
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm({ ...form, email: event.target.value })
+                  }
+                  type="email"
+                  placeholder="you@example.com"
+                />
+              </label>
 
-        <div className="button-row">
-          <button
-            type="button"
-            onClick={() => authenticate("login")}
-            disabled={isLoading || !isFormValid}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => authenticate("signup")}
-            disabled={isLoading || !isFormValid}
-          >
-            Signup
-          </button>
-          <button type="button" onClick={logout} disabled={!token || isLoading}>
-            Logout
-          </button>
-        </div>
+              <label>
+                Password
+                <input
+                  value={form.password}
+                  onChange={(event) =>
+                    setForm({ ...form, password: event.target.value })
+                  }
+                  type="password"
+                  placeholder="Minimum 8 characters"
+                />
+              </label>
+            </div>
+
+            <div className="button-row">
+              <button
+                type="button"
+                onClick={() => authenticate("login")}
+                disabled={isLoading || !isFormValid}
+              >
+                Login
+              </button>
+
+              <button
+                type="button"
+                onClick={() => authenticate("signup")}
+                disabled={isLoading || !isFormValid}
+              >
+                Signup
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="button-row">
+            <button
+              type="button"
+              onClick={() => {
+                chrome.tabs.query(
+                  {
+                    active: true,
+                    currentWindow: true
+                  },
+                  (tabs) => {
+                    const activeTab = tabs[0];
+
+                    if (!activeTab?.id) return;
+
+                    chrome.tabs.sendMessage(
+                      activeTab.id,
+                      {
+                        type: "miniApty.openPanel"
+                      }
+                    );
+
+                    window.close();
+                  }
+                );
+              }}
+              disabled={isLoading}
+            >
+              Open Recorder Panel
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              disabled={isLoading}
+            >
+              Logout
+            </button>
+          </div>
+        )}
       </section>
 
     </div>

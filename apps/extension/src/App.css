@@ -75,7 +75,7 @@ header p {
 
 .button-row button,
 .button-column button {
-  flex: 1 1 calc(50% - 10px);
+  flex: 1 1 140px;
   min-width: 120px;
   padding: 10px 14px;
   border: none;

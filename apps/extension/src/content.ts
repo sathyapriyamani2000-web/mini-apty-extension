@@ -291,9 +291,70 @@ function createPanel() {
 
   document.body.appendChild(panel);
 
+  const stepsContainer = panel.querySelector("#mini-apty-steps");
+
+  stepsContainer?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+
+    const action = target.getAttribute("data-action");
+    const stepId = target.getAttribute("data-step-id");
+
+    if (!action || !stepId) return;
+
+    const id = Number(stepId);
+
+    if (Number.isNaN(id)) return;
+
+    switch (action) {
+      case "edit":
+        startEditingStep(id);
+        break;
+
+      case "cancel-edit":
+        cancelEditStep();
+        break;
+
+      case "save":
+        saveStepEdit(id);
+        break;
+
+      case "delete":
+        deleteStep(id);
+        break;
+
+      case "move-up":
+        moveStepUp(id);
+        break;
+
+      case "move-down":
+        moveStepDown(id);
+        break;
+    }
+  });
+
   const recordButton = panel.querySelector("#mini-apty-record") as HTMLButtonElement | null;
   const recordStatus = panel.querySelector("#mini-apty-record-status") as HTMLDivElement | null;
 
+  const playButton =
+    panel.querySelector("#mini-apty-play") as HTMLButtonElement | null;
+
+  const autoCheckbox =
+    panel.querySelector("#mini-apty-auto") as HTMLInputElement | null;
+
+  const delayInput =
+    panel.querySelector("#mini-apty-delay") as HTMLInputElement | null;
+
+  const closeButton =
+    panel.querySelector("#mini-apty-close") as HTMLDivElement | null;
+
+  playButton?.addEventListener("click", () => {
+    if (currentPlayback) {
+      resetPlayback();
+    } else {
+      playButton.textContent = "Stop Playback";
+      playWalkthrough();
+    }
+  });
   function updateRecordControls() {
     if (recordButton) {
       recordButton.textContent = isRecording ? "Stop Recording" : "Start Recording";
@@ -304,24 +365,74 @@ function createPanel() {
   }
 
   recordButton?.addEventListener("click", async () => {
-  isRecording = !isRecording;
+    isRecording = !isRecording;
 
-  updateRecordControls();
+    updateRecordControls();
 
-  if (isRecording) {
+    if (isRecording) {
+      showMessage(
+        "Recording started",
+        "info"
+      );
+    } else {
+      clearHighlights();
+
+      showMessage(
+        "Recording stopped. Saving walkthrough...",
+        "info"
+      );
+
+      await saveWalkthrough();
+    }
+  });
+
+  playButton?.addEventListener("click", () => {
+    if (currentPlayback) {
+      resetPlayback();
+    } else {
+      playButton.textContent = "Stop Playback";
+      playWalkthrough();
+    }
+  });
+
+  closeButton?.addEventListener("click", () => {
+    // stop recording
+    isRecording = false;
+
+    // clear unsaved steps
+    capturedSteps.length = 0;
+
+    // clear playback
+    resetPlayback();
+
+    // remove highlights
+    clearHighlights();
+
+    // hide panel
+    panel.remove();
+
+    recorderPanel = null;
+
     showMessage(
-      "Recording started",
+      "Recorder closed without saving.",
       "info"
     );
-  } else {
-    showMessage(
-      "Recording stopped. Saving walkthrough...",
-      "info"
-    );
-
-    await saveWalkthrough();
+  });
+  if (autoCheckbox) {
+    autoCheckbox.addEventListener("change", () => {
+      autoAdvance = autoCheckbox.checked;
+    });
   }
-});
+
+  if (delayInput) {
+    delayInput.addEventListener("change", () => {
+      const v = parseInt(delayInput.value, 10);
+
+      if (!isNaN(v) && v >= 250) {
+        autoAdvanceDelay = v;
+      }
+    });
+  }
 
   updateRecordControls();
 }
@@ -334,47 +445,59 @@ function showRecorderPanel() {
     existingBalloon.remove();
   }
 
+  // create panel if missing
+  if (!recorderPanel) {
+    createPanel();
+  }
+
   const panel =
-    recorderPanel ??
-    document.getElementById("mini-apty-panel") as HTMLDivElement | null;
+    recorderPanel ||
+    document.getElementById(
+      "mini-apty-panel"
+    ) as HTMLDivElement | null;
 
-  if (panel) {
-    panel.style.display = "block";
-    panel.style.zIndex = "999999";
-    recorderPanel = panel;
-    isRecording = true;
-
-const recordButton =
-  document.getElementById(
-    "mini-apty-record"
-  ) as HTMLButtonElement | null;
-
-const recordStatus =
-  document.getElementById(
-    "mini-apty-record-status"
-  ) as HTMLDivElement | null;
-
-if (recordButton) {
-  recordButton.textContent =
-    "Stop Recording";
-}
-
-if (recordStatus) {
-  recordStatus.textContent =
-    "Recording active — click elements to capture steps.";
-}
-
-showMessage(
-  "Recording started automatically",
-  "info"
-);
+  if (!panel) {
+    showMessage(
+      "Failed to initialize recorder panel",
+      "error"
+    );
     return;
   }
 
-  createPanel();
-  if (recorderPanel) {
-    recorderPanel.style.display = "block";
+  recorderPanel = panel;
+
+  // force visible
+  panel.style.display = "block";
+  panel.style.visibility = "visible";
+  panel.style.opacity = "1";
+  panel.style.zIndex = "999999";
+
+  isRecording = false;
+
+  const recordButton =
+    document.getElementById(
+      "mini-apty-record"
+    ) as HTMLButtonElement | null;
+
+  const recordStatus =
+    document.getElementById(
+      "mini-apty-record-status"
+    ) as HTMLDivElement | null;
+
+  if (recordButton) {
+    recordButton.textContent =
+      "Start Recording";
   }
+
+  if (recordStatus) {
+    recordStatus.textContent =
+      "Recording is stopped.";
+  }
+
+  showMessage(
+    "Recorder panel opened.",
+    "info"
+  );
 }
 
 function setAutoAdvanceState(value: boolean) {
@@ -484,9 +607,59 @@ function updatePanel() {
             <div style="font-size:13px;color:#6b7280;margin-top:6px;white-space:pre-wrap;">${escapeHtml(step.description)}</div>
             <div style="font-size:12px;color:#4b5563;margin-top:8px;word-break:break-word;">${escapeHtml(step.selector.cssPath || step.selector.text || step.selector.tagName)}</div>
             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-              <button data-action="edit" data-step-id="${step.id}" type="button" style="flex:1 1 120px;padding:8px 12px;border:none;border-radius:8px;background:#2563eb;color:white;cursor:pointer;">Edit</button>
-              <button data-action="delete" data-step-id="${step.id}" type="button" style="flex:1 1 120px;padding:8px 12px;border:none;border-radius:8px;background:#ef4444;color:white;cursor:pointer;">Delete</button>
-            </div>
+
+  <button
+    data-action="move-up"
+    data-step-id="${step.id}"
+    type="button"
+    style="
+      flex:1 1 80px;
+      padding:8px 12px;
+      border:none;
+      border-radius:8px;
+      background:#2563eb;
+      color:white;
+      cursor:pointer;
+    "
+  >
+    ↑ Up
+  </button>
+
+  <button
+    data-action="move-down"
+    data-step-id="${step.id}"
+    type="button"
+    style="
+      flex:1 1 80px;
+      padding:8px 12px;
+      border:none;
+      border-radius:8px;
+      background:#7c3aed;
+      color:white;
+      cursor:pointer;
+    "
+  >
+    ↓ Down
+  </button>
+
+  <button
+    data-action="delete"
+    data-step-id="${step.id}"
+    type="button"
+    style="
+      flex:1 1 80px;
+      padding:8px 12px;
+      border:none;
+      border-radius:8px;
+      background:#ef4444;
+      color:white;
+      cursor:pointer;
+    "
+  >
+    Delete
+  </button>
+
+</div>
           `}
         </div>
       `;
@@ -543,13 +716,80 @@ function deleteStep(stepId: number) {
   showMessage("Step removed", "info");
 }
 
-function highlightElement(element: HTMLElement) {
-  if (currentHighlighted) {
-    currentHighlighted.style.boxShadow = "";
+function moveStepUp(stepId: number) {
+  const index = capturedSteps.findIndex(
+    (step) => step.id === stepId
+  );
+
+  if (index <= 0) return;
+
+  [
+    capturedSteps[index - 1],
+    capturedSteps[index]
+  ] = [
+      capturedSteps[index],
+      capturedSteps[index - 1]
+    ];
+
+  updatePanel();
+
+  showMessage("Step moved up", "info");
+}
+
+function moveStepDown(stepId: number) {
+  const index = capturedSteps.findIndex(
+    (step) => step.id === stepId
+  );
+
+  if (
+    index === -1 ||
+    index >= capturedSteps.length - 1
+  ) {
+    return;
   }
 
+  [
+    capturedSteps[index + 1],
+    capturedSteps[index]
+  ] = [
+      capturedSteps[index],
+      capturedSteps[index + 1]
+    ];
+
+  updatePanel();
+
+  showMessage("Step moved down", "info");
+}
+
+function highlightElement(element: HTMLElement) {
+  clearHighlights();
+
   currentHighlighted = element;
-  element.style.boxShadow = "0 0 0 2px red";
+
+  element.setAttribute(
+    "data-miniapty-highlight",
+    "true"
+  );
+
+  element.style.boxShadow =
+    "0 0 0 2px red";
+}
+
+function clearHighlights() {
+  document
+    .querySelectorAll("[data-miniapty-highlight]")
+    .forEach((el) => {
+      const element = el as HTMLElement;
+
+      element.style.boxShadow = "";
+      element.style.outline = "";
+
+      element.removeAttribute(
+        "data-miniapty-highlight"
+      );
+    });
+
+  currentHighlighted = null;
 }
 
 function buildCssPath(element: HTMLElement) {
@@ -736,14 +976,14 @@ function createBalloon() {
       );
 
       if (playbackTimer) {
-  clearTimeout(playbackTimer);
-  playbackTimer = null;
-}
+        clearTimeout(playbackTimer);
+        playbackTimer = null;
+      }
 
-showPlaybackStep(
-  currentPlayback,
-  nextIndex
-);
+      showPlaybackStep(
+        currentPlayback,
+        nextIndex
+      );
     });
 
     balloon.querySelector("#mini-apty-next")?.addEventListener("click", () => {
@@ -889,10 +1129,6 @@ async function playWalkthrough() {
   console.log("Playing walkthrough");
   try {
     resetPlayback();
-    await savePlaybackProgress(
-  "current",
-  0
-);
 
     const walkthroughs = await apiRequest<unknown[]>(
       `/walkthroughs?origin=${encodeURIComponent(
@@ -927,107 +1163,6 @@ async function playWalkthrough() {
 
     showMessage(message, "error");
   }
-}
-
-createPanel();
-
-const stepsContainer = document.getElementById("mini-apty-steps");
-if (stepsContainer) {
-  stepsContainer.addEventListener("click", (event) => {
-    const target = event.target as HTMLElement;
-    const action = target.getAttribute("data-action");
-    const stepId = target.getAttribute("data-step-id");
-    if (!action || !stepId) return;
-
-    const id = Number(stepId);
-    if (Number.isNaN(id)) return;
-
-    if (action === "edit") {
-      startEditingStep(id);
-    }
-
-    if (action === "cancel-edit") {
-      cancelEditStep();
-    }
-
-    if (action === "save") {
-      saveStepEdit(id);
-    }
-
-    if (action === "delete") {
-      deleteStep(id);
-    }
-  });
-}
-
-const playButton = document.getElementById("mini-apty-play");
-
-const autoCheckbox = document.getElementById("mini-apty-auto") as HTMLInputElement | null;
-const delayInput = document.getElementById("mini-apty-delay") as HTMLInputElement | null;
-
-playButton?.addEventListener("click", () => {
-  if (currentPlayback) {
-    resetPlayback();
-  } else {
-    const btn = document.getElementById("mini-apty-play") as HTMLButtonElement | null;
-    if (btn) btn.textContent = "Stop Playback";
-    playWalkthrough();
-  }
-});
-
-const closeButton =
-  document.getElementById(
-    "mini-apty-close"
-  );
-
-closeButton?.addEventListener("click", () => {
-  // stop recording
-  isRecording = false;
-
-  // remove active highlight
-  if (currentHighlighted) {
-    currentHighlighted.style.outline = "";
-    currentHighlighted.style.boxShadow = "";
-    currentHighlighted = null;
-  }
-
-  // update button text
-  const recordButton = document.getElementById(
-    "mini-apty-record"
-  ) as HTMLButtonElement | null;
-
-  if (recordButton) {
-    recordButton.textContent = "Start Recording";
-    recordButton.style.background = "#22c55e";
-  }
-
-  // update status text
-  const status = document.getElementById(
-    "mini-apty-status"
-  );
-
-  if (status) {
-    status.textContent = "Recording is stopped.";
-  }
-
-  // hide panel
-  recorderPanel?.remove();
-  recorderPanel = null;
-});
-
-if (autoCheckbox) {
-  autoCheckbox.addEventListener("change", () => {
-    autoAdvance = autoCheckbox.checked;
-  });
-}
-
-if (delayInput) {
-  delayInput.addEventListener("change", () => {
-    const v = parseInt(delayInput.value, 10);
-    if (!isNaN(v) && v >= 250) {
-      autoAdvanceDelay = v;
-    }
-  });
 }
 
 window.addEventListener("error", (event) => {
