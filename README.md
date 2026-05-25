@@ -40,6 +40,13 @@ pnpm --filter extension test
 - Open `chrome://extensions/` and enable Developer mode
 - Click "Load unpacked" and select `apps/extension/dist`
 
+4. docker exec -it mini-apty-backend-1 sh
+
+5.  cd /app/apps/backend
+
+6. npx prisma generate --schema=./prisma/schema.prisma
+
+7. npx prisma db push --schema=./prisma/schema.prisma
 Notes & tradeoffs
 
 - The Docker configuration is tuned for reviewer convenience (mounted workspace, dev server). For production you'd build a smaller image and run a compiled server.

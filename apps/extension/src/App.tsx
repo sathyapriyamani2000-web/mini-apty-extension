@@ -148,13 +148,21 @@ function App() {
           if (!activeTab?.id) return;
 
           chrome.tabs.sendMessage(
-            activeTab.id,
-            {
-              type: "miniApty.openPanel"
-            }
-          );
+  activeTab.id,
+  {
+    type: "miniApty.openPanel"
+  },
+  () => {
+    if (chrome.runtime.lastError) {
+      console.error(
+        chrome.runtime.lastError.message
+      );
+      return;
+    }
 
-          window.close();
+    window.close();
+  }
+);
         }
       );
 
