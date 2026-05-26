@@ -138,16 +138,20 @@ function App() {
       showMessage("Login successful.", "success");
 
       chrome.tabs.query(
-        {
-          active: true,
-          currentWindow: true
-        },
-        (tabs) => {
-          const activeTab = tabs[0];
+  {
+    active: true,
+    currentWindow: true
+  },
+  async (tabs) => {
+    const activeTab = tabs[0];
 
-          if (!activeTab?.id) return;
+    if (!activeTab?.id) {
+      return;
+    }
 
-          chrome.tabs.sendMessage(
+    try {
+      // inject content script first
+      chrome.tabs.sendMessage(
   activeTab.id,
   {
     type: "miniApty.openPanel"
@@ -163,8 +167,37 @@ function App() {
     window.close();
   }
 );
+
+      // small delay
+      await new Promise((resolve) =>
+        setTimeout(resolve, 300)
+      );
+
+      // now send message
+      chrome.tabs.sendMessage(
+        activeTab.id,
+        {
+          type: "miniApty.openPanel"
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              chrome.runtime.lastError.message
+            );
+            return;
+          }
+
+          window.close();
         }
       );
+    } catch (error) {
+      console.error(
+        "Failed to open recorder panel",
+        error
+      );
+    }
+  }
+);
 
     } catch (error) {
       showMessage(error instanceof Error ? error.message : String(error), "error");

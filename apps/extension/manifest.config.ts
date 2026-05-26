@@ -8,10 +8,11 @@ export default defineManifest({
   version: "1.0.0",
 
   permissions: [
-    "storage",
-    "activeTab",
-    "scripting"
-  ],
+  "storage",
+  "activeTab",
+  "scripting",
+  "tabs"
+],
 
   host_permissions: [
     "<all_urls>"
@@ -26,11 +27,11 @@ export default defineManifest({
   },
 
   content_scripts: [
-    {
-      matches: ["<all_urls>"],
-      js: ["src/content.ts"]
-    }
-  ],
+  {
+    matches: ["<all_urls>"],
+    js: ["src/content.js"]
+  }
+],
 
   content_security_policy: {
   extension_pages:
